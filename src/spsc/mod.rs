@@ -359,6 +359,67 @@ macro_rules! impl_ {
                 }
             }
 
+            /// TODO: Add tests
+            pub fn dequeue_chunk(&mut self, output_buf: &mut [T]) -> usize {
+                let cap = self.capacity();
+                let len = self.len() as usize;
+
+                let head = self.0.head.get_mut();
+                let tail = self.0.tail.get_mut();
+
+                let p = self.0.buffer.as_ptr() as *const T;
+
+                if *head != *tail {
+                    let left_until_head_overflows = (cap - *head) as usize;
+
+                    // Check so we do not write more than what fits
+                    let items_to_write = left_until_head_overflows.min(len).min(output_buf.len());
+
+                    // First chunk
+                    unsafe {
+                        ptr::copy_nonoverlapping(
+                            p.add(usize::from(*head)),
+                            output_buf.as_mut_ptr(),
+                            items_to_write,
+                        );
+                    }
+
+                    let items_written = items_to_write;
+
+                    if items_written == left_until_head_overflows
+                        && len > items_to_write
+                        && output_buf.len() > items_to_write
+                    {
+                        // There is more to write after head overflow
+                        let left_to_write = len - items_written;
+
+                        // Check again so we do not overflow the output buffer
+                        let items_to_write = left_to_write.min(output_buf.len() - items_written);
+
+                        // Second chunk, after head overflow (*head is 0 here conceptually)
+                        unsafe {
+                            ptr::copy_nonoverlapping(
+                                p,
+                                output_buf.as_mut_ptr().add(items_written),
+                                items_to_write,
+                            );
+                        }
+
+                        // Update to final value of head
+                        *head = items_to_write as _;
+
+                        items_written + items_to_write
+                    } else {
+                        // Update to final value of head
+                        *head = head.wrapping_add(items_to_write as _) % cap;
+
+                        items_written
+                    }
+                } else {
+                    0
+                }
+            }
+
             /// Adds an `item` to the end of the queue
             ///
             /// Returns back the `item` if the queue is full
