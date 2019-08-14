@@ -18,7 +18,10 @@ use super::{Init, Node, Uninit};
 #[cfg(any(armv7m, armv7r, armv8m, test))]
 #[macro_export]
 macro_rules! pool {
-    ($(#[$($attr:tt)*])* $ident:ident: $ty:ty) => {
+     ($(#[doc = $doc:tt])*
+      $(#[$($attr:tt)*])*
+      $ident:ident: $ty:ty) => {
+        $(#[doc = $doc])*
         pub struct $ident;
 
         impl $crate::pool::singleton::Pool for $ident {
